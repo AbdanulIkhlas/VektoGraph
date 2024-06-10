@@ -7,14 +7,15 @@ from queue import Queue
 class VektorDraw:
     def __init__(self, root, cb, parent=None):
         self.root = root
-        self.root.title("VEKTOR DRAW")
+        self.root.title("VectoGraph")
         self.root.geometry("1150x720")
         self.root.configure(bg="#f0f0f0")
 
-        self.canvas = tk.Canvas(root, height=600, width=1000, bg=cb)
+        self.canvas = tk.Canvas(root, height=600, width=1200, bg=cb)
         self.canvas.grid(row=1, column=0, columnspan=2000, padx=10, pady=10)
 
         self.cl = "black"
+        self.fillColor = "#828181"
         self.current_algorithm = None
         self.temp_shape = None
         self.start = None
@@ -43,7 +44,8 @@ class VektorDraw:
             "scale": ImageTk.PhotoImage(Image.open("icons/scale.png")),
             "reflect": ImageTk.PhotoImage(Image.open("icons/reflect.png")),
             "boundary_fill": ImageTk.PhotoImage(Image.open("icons/boundary-fill.png")),
-            "flood_fill": ImageTk.PhotoImage(Image.open("icons/flood-fill.png")),
+            # "flood_fill": ImageTk.PhotoImage(Image.open("icons/flood-fill.png")),
+            "clear_canvas": ImageTk.PhotoImage(Image.open("icons/eraser.png")),
         }
 
         self.add_toolbar_button("save_image", self.save_image, "Save Image")
@@ -58,8 +60,9 @@ class VektorDraw:
         self.add_toolbar_button("reflect", self.reflect_mode, "Reflect Transfrom")
         self.add_toolbar_button("choose_color", self.choose_color, "Choose Color")
         self.add_toolbar_button("background_color", self.choose_bg_color, "Background Color")
-        self.add_toolbar_button("boundary_fill", self.boundary_fill_mode, "Boundary Fill")
-        self.add_toolbar_button("flood_fill", self.flood_fill_mode, "Flood Fill")
+        self.add_toolbar_button("boundary_fill", self.choose_fillcolor, "Boundary Fill")
+        # self.add_toolbar_button("flood_fill", self.flood_fill_mode, "Flood Fill")
+        self.add_toolbar_button("clear_canvas", self.clear_canvas, "Clear Canvas")
 
         # Status bar
         self.status = tk.Label(root, text="Welcome to VectorDraw", bd=1, relief=tk.SUNKEN, anchor=tk.W)
@@ -82,10 +85,17 @@ class VektorDraw:
         self.toolbar_labels.append(label)
 
 
+    def clear_canvas(self):
+        self.canvas.delete("all")
+        self.update_status("Canvas Cleared")
 
     def choose_color(self):
         cx = colorchooser.askcolor()
         self.cl = cx[1]
+
+    def choose_fillcolor(self):
+        cx = colorchooser.askcolor()
+        self.fillColor = cx[1]
 
     def choose_bg_color(self):
         cb = colorchooser.askcolor()
@@ -161,12 +171,12 @@ class VektorDraw:
         elif self.current_algorithm == "circle_midpoint":
             if self.start:
                 radius = int(((self.start[0] - event.x) ** 2 + (self.start[1] - event.y) ** 2) ** 0.5)
-                circle_midpoint(self.start[0], self.start[1], radius, self.canvas, self.cl)
+                circle_midpoint(self.start[0], self.start[1], radius, self.canvas, self.cl, self.fillColor)
         elif self.current_algorithm == "ellipse_midpoint":
             if self.start:
                 rx = abs(self.start[0] - event.x)
                 ry = abs(self.start[1] - event.y)
-                ellipse_midpoint(self.start[0], self.start[1], rx, ry, self.canvas, self.cl)
+                ellipse_midpoint(self.start[0], self.start[1], rx, ry, self.canvas, self.cl, self.fillColor)
 
         self.canvas.unbind('<Motion>')
         self.start = None
@@ -175,7 +185,7 @@ class VektorDraw:
     def onTriangleClick(self, event):
         self.triangle_points.append((event.x, event.y))
         if len(self.triangle_points) == 3:
-            self.canvas.create_polygon(self.triangle_points, outline=self.cl, fill='')
+            self.canvas.create_polygon(self.triangle_points, outline=self.cl, fill=self.fillColor)
             self.triangle_points = []
 
     def onFillStart(self, event=None):
@@ -316,19 +326,19 @@ def line_dda(x1, y1, x2, y2, canvas, color):
         x += x_inc
         y += y_inc
 
-def circle_midpoint(xc, yc, r, canvas, color):
+def circle_midpoint(xc, yc, r, canvas, outline_color, fill_color):
     x = 0
     y = r
     p = 1 - r
+
+    # Menggambar titik-titik fill dalam lingkaran
     while x <= y:
-        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=color)
-        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=color)
-        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=color)
-        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=color)
-        canvas.create_line(xc + y, yc + x, xc + y + 1, yc + x, fill=color)
-        canvas.create_line(xc - y, yc + x, xc - y + 1, yc + x, fill=color)
-        canvas.create_line(xc + y, yc - x, xc + y + 1, yc - x, fill=color)
-        canvas.create_line(xc - y, yc - x, xc - y + 1, yc - x, fill=color)
+        for i in range(xc - x, xc + x + 1):
+            canvas.create_line(i, yc + y, i + 1, yc + y, fill=fill_color)
+            canvas.create_line(i, yc - y, i + 1, yc - y, fill=fill_color)
+        for i in range(xc - y, xc + y + 1):
+            canvas.create_line(i, yc + x, i + 1, yc + x, fill=fill_color)
+            canvas.create_line(i, yc - x, i + 1, yc - x, fill=fill_color)
         if p < 0:
             p += 2 * x + 3
         else:
@@ -336,15 +346,37 @@ def circle_midpoint(xc, yc, r, canvas, color):
             y -= 1
         x += 1
 
-def ellipse_midpoint(xc, yc, rx, ry, canvas, color):
+    # Reset variabel
+    x = 0
+    y = r
+    p = 1 - r
+
+    # Menggambar outline lingkaran
+    while x <= y:
+        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=outline_color)
+        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=outline_color)
+        canvas.create_line(xc + y, yc + x, xc + y + 1, yc + x, fill=outline_color)
+        canvas.create_line(xc - y, yc + x, xc - y + 1, yc + x, fill=outline_color)
+        canvas.create_line(xc + y, yc - x, xc + y + 1, yc - x, fill=outline_color)
+        canvas.create_line(xc - y, yc - x, xc - y + 1, yc - x, fill=outline_color)
+        if p < 0:
+            p += 2 * x + 3
+        else:
+            p += 2 * (x - y) + 5
+            y -= 1
+        x += 1
+
+def ellipse_midpoint(xc, yc, rx, ry, canvas, outline_color, fill_color):
     x = 0
     y = ry
     p1 = ry**2 - rx**2 * ry + rx**2 / 4
+
     while 2 * ry**2 * x <= 2 * rx**2 * y:
-        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=color)
-        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=color)
-        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=color)
-        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=color)
+        for i in range(xc - x, xc + x + 1):
+            canvas.create_line(i, yc + y, i + 1, yc + y, fill=fill_color)
+            canvas.create_line(i, yc - y, i + 1, yc - y, fill=fill_color)
         if p1 < 0:
             x += 1
             p1 += 2 * ry**2 * x + ry**2
@@ -352,12 +384,49 @@ def ellipse_midpoint(xc, yc, rx, ry, canvas, color):
             x += 1
             y -= 1
             p1 += 2 * ry**2 * x - 2 * rx**2 * y + ry**2
+
     p2 = ry**2 * (x + 0.5)**2 + rx**2 * (y - 1)**2 - rx**2 * ry**2
+
+    # Menggambar titik-titik fill dalam elips
     while y >= 0:
-        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=color)
-        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=color)
-        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=color)
-        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=color)
+        for i in range(xc - x, xc + x + 1):
+            canvas.create_line(i, yc + y, i + 1, yc + y, fill=fill_color)
+            canvas.create_line(i, yc - y, i + 1, yc - y, fill=fill_color)
+        if p2 > 0:
+            y -= 1
+            p2 -= 2 * rx**2 * y + rx**2
+        else:
+            y -= 1
+            x += 1
+            p2 += 2 * ry**2 * x - 2 * rx**2 * y + rx**2
+
+    # Reset variabel
+    x = 0
+    y = ry
+    p1 = ry**2 - rx**2 * ry + rx**2 / 4
+
+    # Menggambar outline elips
+    while 2 * ry**2 * x <= 2 * rx**2 * y:
+        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=outline_color)
+        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=outline_color)
+        if p1 < 0:
+            x += 1
+            p1 += 2 * ry**2 * x + ry**2
+        else:
+            x += 1
+            y -= 1
+            p1 += 2 * ry**2 * x - 2 * rx**2 * y + ry**2
+
+    p2 = ry**2 * (x + 0.5)**2 + rx**2 * (y - 1)**2 - rx**2 * ry**2
+
+    # Menggambar outline elips
+    while y >= 0:
+        canvas.create_line(xc + x, yc + y, xc + x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc - x, yc + y, xc - x + 1, yc + y, fill=outline_color)
+        canvas.create_line(xc + x, yc - y, xc + x + 1, yc - y, fill=outline_color)
+        canvas.create_line(xc - x, yc - y, xc - x + 1, yc - y, fill=outline_color)
         if p2 > 0:
             y -= 1
             p2 -= 2 * rx**2 * y + rx**2
@@ -456,3 +525,42 @@ if __name__ == "__main__":
     boundaryColor = "#000000"  # Boundary color
     gui = VektorDraw(root, cb)
     root.mainloop()
+
+
+def boundary_fill(canvas, x, y, fill_color, boundary_color):
+    bg_color = canvas["bg"]
+    try:
+        bg_rgb = canvas.winfo_rgb(bg_color)[:3]
+    except:
+        bg_rgb = (255, 255, 255)
+
+    pixel_color = canvas.winfo_rgb(canvas.itemcget(canvas.find_closest(x, y), "fill"))[:3]
+
+    fill_rgb = canvas.winfo_rgb(fill_color)
+    boundary_rgb = canvas.winfo_rgb(boundary_color)
+
+    if pixel_color == fill_rgb or pixel_color == boundary_rgb:
+        return
+
+    q = Queue()
+    q.put((x, y))
+
+    filled_points = set()
+
+    while not q.empty():
+        x, y = q.get()
+        
+        if (x, y) in filled_points:
+            continue
+        current_pixel_color = canvas.winfo_rgb(canvas.itemcget(canvas.find_closest(x, y), "fill"))[:3]
+        if current_pixel_color == pixel_color:
+            canvas.create_line(x, y, x+1, y, fill=fill_color)
+            filled_points.add((x, y))
+            if x + 1 < canvas.winfo_width():
+                q.put((x + 1, y))
+            if x - 1 >= 0:
+                q.put((x - 1, y))
+            if y + 1 < canvas.winfo_height():
+                q.put((x, y + 1))
+            if y - 1 >= 0:
+                q.put((x, y - 1))
